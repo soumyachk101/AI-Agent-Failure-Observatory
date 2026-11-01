@@ -20,6 +20,13 @@ export function App() {
   const [workspace, setWorkspace] = useState<Workspace>("runs");
   const [jumpState, setJumpState] = useState<RunJump | null>(null);
   const [keyOverride, setKeyOverride] = useState("");
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+  // Theme is applied to <html> so every surface token follows; dark is the
+  // default (spec: dark-first, light designed not inverted).
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
 
   // Applying a key override re-authenticates every subsequent request and
   // remounts the active workspace (keyed below) so data refetches.
@@ -116,6 +123,15 @@ export function App() {
               </span>
             </div>
           )}
+
+          <button
+            className="btn ghost"
+            style={{ marginTop: "auto", alignSelf: "flex-start" }}
+            onClick={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+            aria-label="Toggle color theme"
+          >
+            {theme === "dark" ? "◐ light" : "◑ dark"}
+          </button>
         </aside>
 
         <main className="workspace">
