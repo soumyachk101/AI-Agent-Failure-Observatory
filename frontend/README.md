@@ -1,112 +1,116 @@
-# observatory frontend
+# AI Agent Failure Observatory — frontend
 
 React + TypeScript (Vite) workbench for the AI Agent Failure Observatory.
-Three workspaces — Run Explorer, Failures, Evaluations (datasets, version
-comparison, safe replay) — over the Go API in `../server`.
+Three workspaces — **Run Explorer**, **Failures**, **Evaluations** (datasets,
+version comparison, safe replay) — over the Go API in `../server`.
 
-Every screen calls a real endpoint from `server/internal/api/router.go`;
-the client in `src/api.ts` is the single place that knows the paths, so a
-server-side change shows up as a type error, not a broken page. Demo data
-served by the seeded demo project is labelled **sample** in the UI — it is
-never presented as real analytics.
+Every screen calls a real endpoint that exists in
+`server/internal/api/router.go`; the client in `src/api.ts` is the single
+place that knows the paths, verified field-by-field against
+`server/internal/api/helpers.go` and the Go serializers. The seeded demo
+project (key `demo-key`) is explicitly sample data and the UI labels it as
+such — it is never presented as real analytics.
 
 ## Setup
 
 ```sh
-pnpm install          # or npm install
-cp .env.example .env  # optional — defaults target the seeded demo project
+cd frontend
+pnpm install            # or npm install
+cp .env.example .env    # optional — defaults already target the demo project
 ```
 
-The dev server proxies `/v1` to the Go API (`OBS_API_TARGET`, default
-`http://127.0.0.1:8080`). Run the server first:
+Run the Go server first (it seeds the demo project, key, dataset and a
+sample run when started with `--seed-demo`, which is the default):
 
 ```sh
 cd ../server
-go run ./cmd/observatory   # seeds project "demo" / key "demo-key"
+go run ./cmd/observatory          # listens on :8080
 ```
 
-Then:
+## Dev server / build / test
 
 ```sh
-pnpm dev                  # http://localhost:5173
+cd frontend
+pnpm dev          # http://localhost:5173, /v1 proxied to OBS_API_TARGET
+pnpm build        # tsc -b + vite production bundle
+pnpm preview      # serve the production bundle
+pnpm typecheck    # type-check only
+pnpm test         # vitest (spring math + formatters)
 ```
 
-## Environment
+## Environment (`.env.example`)
 
 | Var | Default | Meaning |
 | --- | --- | --- |
 | `VITE_API_BASE` | *(empty)* | API origin; empty = same-origin dev proxy |
-| `VITE_API_KEY` | `demo-key` | Bearer project key (demo project's seeded key) |
-| `VITE_PROJECT_ID` | `demo` | Project id used in `/v1/projects/{pid}/…` paths |
+| `VITE_API_KEY` | `demo-key` | Bearer project key |
+| `VITE_PROJECT_ID` | `demo` | Project id in `/v1/projects/{pid}/…` |
 | `OBS_API_TARGET` | `http://127.0.0.1:8080` | dev-proxy target |
 
-## Commands
+## What lives where
 
-```sh
-pnpm dev          # dev server
-pnpm build        # type-check (tsc -b) + production bundle
-pnpm preview      # serve the production bundle locally
-pnpm typecheck    # tsc only
-pnpm test         # vitest (unit tests for the spring math + formatting)
-```
-
-## Layout
-
-- `src/api.ts` — typed client, one function per endpoint, verified against
-  `server/internal/api/`.
+- `src/api.ts` — typed client, one function per endpoint (paths from
+  `server/internal/api/router.go`), runtime key override.
 - `src/types.ts` — wire shapes mirrored from the Go serializers.
-- `src/App.tsx` — shell: project selector + key display, navigation,
-  sample-data banner, cross-workspace jump into the Run Explorer.
+- `src/App.tsx` — shell: project + key display, workspace navigation,
+  sample-data banner, cross-workspace "jump to run" handoff, error
+  boundary.
 - `src/workspaces/RunsWorkspace.tsx` — three-region Run Explorer workbench
-  (outline / timeline / inspector), run filters (status, agent, version,
-  time range).
+  (outline / timeline / inspector) with status, agent, version and
+  time-range filters.
 - `src/workspaces/timeline/TimelineCanvas.tsx` — purpose-built SVG
-  timeline: parent-child span rows, time axis, kind colour coding, failed
-  spans, evidence markers; row virtualisation for long traces.
+  timeline: parent-child span hierarchy, time axis, kind colour coding,
+  failed-span styling, evidence markers, windowed row virtualisation.
 - `src/workspaces/timeline/RunInspector.tsx` — span/event inspector with
-  raw event evidence and attributes (provider-reported vs estimated usage
-  labels).
-- `src/workspaces/FailuresWorkspace.tsx` — failure clusters + per-kind
-  finding detail (tool-loop keys, oscillation fingerprints, budget,
-  clustering) with links into the Run Explorer at the offending span.
-- `src/workspaces/EvaluationsWorkspace.tsx` — datasets, side-by-side
-  version comparison, safe replay controls (mocked default, live
-  visibly refused).
-- `src/workspaces/VersionCarousel.tsx` — the one permitted carousel:
-  pointer drag with capture, release-velocity spring, interruptible and
-  reversible, momentum-projected snapping, keyboard + prev/next, partial
-  next-item affordance, reduced-motion fallback.
-- `src/styles.css` — Graphite & Violet tokens (dark-first, designed light
-  theme), the sparse trace-path/event-node background layer, dense
-  workbench layout.
-- `src/hooks.tsx` — `useAsync` and loading/empty/error/success primitives.
+  raw event evidence, attributes and provider-reported vs estimated usage
+  labels.
+- `src/workspaces/FailuresWorkspace.tsx` — failure cluster table +
+  per-signature finding detail (tool-loop keys, oscillation sequences,
+  budget, clustering) with links into the Run Explorer at the offending
+  span.
+- `src/workspaces/EvaluationsWorkspace.tsx` — dataset management,
+  evaluation runs (deterministic scoring, evidence-linked results, no
+  fabricated statistics) and safe replay: mocked tools are the default and
+  live replay is visibly *refused* (both in the UI and via the server's
+  405 refusal, which is shown verbatim).
+- `src/workspaces/VersionCarousel.tsx` + `src/spring.ts` — the one
+  permitted carousel for version comparison: pointer capture drag,
+  release-velocity spring (critically damped; small bounce only on
+  flicks), momentum-projected snap selection, fully interruptible and
+  reversible, keyboard + prev/next, partial next-item affordance,
+  reduced-motion instant snap.
+- `src/styles.css` — Graphite & Violet design tokens (dark-first,
+  designed light theme), the sparse trace-path/event-node SVG background
+  layer, dense workbench layout.
 
-## Design notes (spec §11 + design brief)
+## Design notes (spec §11 + visual brief)
 
-- **Fonts**: IBM Plex Sans / IBM Plex Mono are self-hosted through
-  `@fontsource/ibm-plex-sans` and `@fontsource/ibm-plex-mono` (installed
-  as packages, no binary font files vendored). `src/styles.css` declares
-  system fallbacks (`system-ui` / `ui-monospace`) so the UI still renders
-  correctly if the packages fail to install.
-- **Background**: `.app-bg` is a static, very-low-opacity SVG trace-path /
-  event-node constellation drawn once in CSS (data-URI in `styles.css`).
-  It never animates and never sits behind dense data without a solid
-  surface. `prefers-reduced-motion` disables the remaining transitions.
+- **Fonts**: IBM Plex Sans/Mono are self-hosted through the
+  `@fontsource/ibm-plex-sans` / `@fontsource/ibm-plex-mono` packages
+  (imported in `src/main.tsx`). No binary font files are vendored in the
+  repo; `src/styles.css` declares system fallbacks (`system-ui`,
+  `ui-monospace`) so the UI still renders if the packages are missing.
+  Tabular numerals are used for timings/counts/versions/costs.
+- **Background**: `.app-bg` is a static, very low-opacity SVG
+  trace-path/event-node constellation (data-URI in `styles.css`), drawn
+  once, never animated, and always covered by a solid surface behind
+  dense data. `prefers-reduced-motion` disables transitions.
 - **Density**: 4px spacing scale, 1440px content frame, no card-in-card,
-  6–8px radii, no hero.
+  restrained radii, no hero.
 - **Usage labels**: `usage_source` (provider vs estimate) is shown on
-  every run row and span, per the MVP definition of done.
+  spans and the inspector, per the MVP definition of done.
 
-## Limitations (documented)
+## Documented limitations
 
-- No auth flow: keys come from `VITE_API_KEY` (or the shell's key
-  override input). The server admin endpoints (`POST /v1/projects`,
-  `POST /v1/projects/{pid}/keys`) exist but are intentionally not wrapped
-  in the UI — creating projects is an out-of-band operation.
-- Alert rules are managed server-side; the Failures workspace shows the
-  rule-engine findings/signatures but there is no alert-rule editor UI
-  yet (the endpoints exist in the API).
-- Virtualisation of the timeline is simple windowing (rows near the
-  scroll position render); it is not a full virtual list library.
-- The carousel reads viewport width at layout time; resizing the window
-  mid-gesture re-measures on the next frame.
+- No login/RBAC flow: the key comes from `VITE_API_KEY` or the shell's
+  key-override input (which re-authenticates live). The admin endpoints
+  (`POST /v1/projects`, `POST /v1/projects/{pid}/keys`) are intentionally
+  not wrapped in the UI.
+- No alert-rule editor UI: alert rules and their evaluation are managed
+  server-side; the Failures workspace shows the rule-engine
+  findings/signatures only (the alert endpoints exist in the API but are
+  not surfaced here).
+- Timeline virtualisation is simple windowing around the scroll position,
+  not a virtual-list library.
+- The carousel re-measures viewport width on window resize; a resize
+  mid-gesture settles on the next frame.
