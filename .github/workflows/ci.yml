@@ -1,0 +1,86 @@
+# CI — three independent jobs mirroring the three components.
+#
+#   server    go build / vet / test for the Go control plane
+#   sdk       vitest + tsc for the TypeScript SDK
+#   frontend  tsc -b + vitest for the React Run Explorer workbench
+#
+# The jobs are independent: a gap in one component does not block the
+# others, and the lead runs the full validation locally regardless.
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  server:
+    name: go control plane
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: server
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: server/go.mod
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+  sdk:
+    name: typescript sdk
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: sdk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Test
+        run: npm test
+
+  frontend:
+    name: react workbench
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Typecheck + build
+        run: npm run build
+
+      - name: Test
+        run: npm test
