@@ -9,13 +9,18 @@ export type Async<T> =
   | { status: "ready"; data: T };
 
 /** Use an async load that is cancel-safe: stale responses never overwrite
- * fresh ones. `key` re-triggers the load when it changes. */
-export function useAsync<T>(fn: () => Promise<T>, ...deps: unknown[]) {
+ * fresh ones. `deps` re-trigger the load when any of them change (compared
+ * element-wise, like a useEffect dependency array). */
+export function useAsync<T>(fn: () => Promise<T>, deps: unknown[] = []) {
   const [state, setState] = useState<Async<T>>({ status: "loading", data: null });
   const seq = useRef(0);
   const fnRef = useRef(fn);
-  fnRef.current = fn;
+  useEffect(() => {
+    fnRef.current = fn;
+  });
 
+  // reload is identity-stable; the trigger effect reads the latest fn via
+  // fnRef and re-runs only when `deps` change.
   const reload = useCallback(() => {
     const id = ++seq.current;
     setState((s) => ({ status: "loading", data: s.data }));
@@ -32,11 +37,12 @@ export function useAsync<T>(fn: () => Promise<T>, ...deps: unknown[]) {
             data: null,
           });
       });
-  }, deps);
+  }, []);
 
   useEffect(() => {
     reload();
-  }, [reload]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [reload, ...deps]);
   return [state, reload] as const;
 }
 
