@@ -1,4 +1,4 @@
-import { Component, useEffect, useState } from "react";
+import { Component, useEffect, useState, type ReactNode } from "react";
 import { RunsWorkspace } from "./workspaces/RunsWorkspace";
 import { FailuresWorkspace } from "./workspaces/FailuresWorkspace";
 import { EvaluationsWorkspace } from "./workspaces/EvaluationsWorkspace";
@@ -139,7 +139,7 @@ export function App() {
 
 /** Catches render errors and shows a concrete, non-decorative message. */
 export class ErrorBoundary extends Component<
-  { children: React.ReactNode },
+  { children: ReactNode },
   { error: string | null }
 > {
   state = { error: null as string | null };
