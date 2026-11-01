@@ -1,0 +1,130 @@
+# AI Agent Failure Observatory — deployment profiles.
+#
+# The Go server reads its configuration exclusively from these env vars /
+# flags (verified in server/cmd/observatory/main.go — do not rename):
+#   OBS_ADDR           listen address                 (default ":8080")
+#   OBS_DATA_DIR       embedded data directory        (default "./data")
+#   OBS_LOG_LEVEL      log level                      (default "info")
+#   OBS_SEED_DEMO      seed the demo project ("true"/"false") (default "true")
+#   OBS_WEBHOOK_SECRET HMAC secret for signed webhooks (default "")
+#
+# The DEFAULT (dev) build is hardcoded to the local fallbacks: embedded
+# SQLite at $OBS_DATA_DIR/observatory.db, the file queue at
+# $OBS_DATA_DIR/queue, and the local blob dir at $OBS_DATA_DIR/blobs.
+# It does NOT read any Postgres/ClickHouse/NATS/S3 env vars today — those
+# producers exist only as build-tagged migration code (see
+# deploy/NOTES-AND-GAPS.md).
+
+x-server-common: &server-common
+  build:
+    context: ./server
+  environment:
+    OBS_ADDR: ":8080"
+    OBS_LOG_LEVEL: info
+    OBS_SEED_DEMO: "true"
+    OBS_WEBHOOK_SECRET: ""
+  ports:
+    - "8080:8080"
+
+services:
+  # ============ DEV PROFILE (default) ============
+  # Embedded SQLite + file queue + local blob dir. `docker compose up server`.
+  server:
+    <<: *server-common
+    volumes:
+      - observatory-data:/observatory/data
+    environment:
+      <<: *server-common.environment
+      OBS_DATA_DIR: /observatory/data
+
+  # ============ PROD PROFILE (target shape, not provisioned here) ============
+  # Managed targets behind the server: Postgres, ClickHouse, NATS JetStream,
+  # S3-compatible bucket (MinIO below stands in for a hosted S3). The
+  # PRODUCTION_OBS_* vars are documented placeholders for the future
+  # build-tagged binaries — the current default build ignores them, and they
+  # must be wired to OBS_* names once those binaries exist (gap log).
+  postgres:
+    image: postgres:16
+    profiles: ["prod"]
+    environment:
+      POSTGRES_DB: observatory
+      POSTGRES_USER: observatory
+      POSTGRES_PASSWORD: observatory
+      PRODUCTION_OBS_DATABASE_URL: postgres://observatory:observatory@postgres:5432/observatory
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:latest
+    profiles: ["prod"]
+    environment:
+      CLICKHOUSE_DB: observatory
+      CLICKHOUSE_USER: observatory
+      CLICKHOUSE_PASSWORD: observatory
+      PRODUCTION_OBS_CLICKHOUSE_DSN: clickhouse://observatory:observatory@clickhouse:8123/observatory
+    volumes:
+      - clickhouse-data:/var/lib/clickhouse
+    ports:
+      - "8123:8123"
+      - "9000:9000"
+
+  nats:
+    image: nats:2.10-alpine
+    profiles: ["prod"]
+    # -s enables JetStream. Stream "observatory.events" is created lazily by
+    # the build-tagged NATS producer (internal/queue/nats.go).
+    command: ["-s", "-js"]
+    environment:
+      PRODUCTION_OBS_NATS_URL: nats://nats:4222
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+
+  minio:
+    image: minio/minio:latest
+    profiles: ["prod"]
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: obs-admin
+      MINIO_ROOT_PASSWORD: obs-secret
+      PRODUCTION_OBS_S3_ENDPOINT: http://minio:9000
+      PRODUCTION_OBS_S3_BUCKET: observatory
+      PRODUCTION_OBS_S3_ACCESS_KEY: obs-admin
+      PRODUCTION_OBS_S3_SECRET_KEY: obs-secret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  # Uncomment once the server gains a non-embedded store, and replace the
+  # placeholders with the real OBS_* env names the binary will read:
+  # server-prod:
+  #   <<: *server-common
+  #   profiles: ["prod"]
+  #   environment:
+  #     OBS_DATA_DIR: /observatory/data
+  #     # PRODUCTION_OBS_DATABASE_URL etc. above -> OBS_* once available
+
+  # ============ WEB FRONTEND (TEMPLATE — NOT ACTIVE) ============
+  # The Vite app builds to a static bundle; this block is a placeholder to
+  # uncomment once frontend/ lands a buildable package.json + source and a
+  # frontend/Dockerfile. It is intentionally NOT a working service today.
+  #
+  # web-frontend:
+  #   image: observatory-frontend:latest   # built from frontend/Dockerfile
+  #   #   build: ./frontend               # enable once frontend/ is buildable
+  #   ports:
+  #     - "5173:80"                        # nginx static on 80 -> host 5173
+  #   # nginx.conf (in the image) proxies /v1 -> http://server:8080
+  #   depends_on:
+  #     - server
+  #   # placeholder: replace with real nginx config when frontend/Dockerfile lands
+
+volumes:
+  observatory-data:
+  postgres-data:
+  clickhouse-data:
+  minio-data:
