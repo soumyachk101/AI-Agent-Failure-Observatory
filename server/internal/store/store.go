@@ -496,6 +496,26 @@ func nullStr(s string) any {
 	return s
 }
 
+// JSON marshals an attribute map for persistence. Exported so adapters
+// (storepg) encode the same column shape the dev store uses.
+func JSON(v any) ([]byte, error) { return json.Marshal(v) }
+
+// JSONDecode parses a persisted attrs column into a map. Exported for
+// adapters that read the column back.
+func JSONDecode(s string, out *map[string]any) error {
+	if s == "" {
+		s = "{}"
+	}
+	*out = map[string]any{}
+	return json.Unmarshal([]byte(s), out)
+}
+
+// AsFloat coerces a decoded JSON attribute value to float64.
+func AsFloat(v any) float64 { return asFloat(v) }
+
+// AsBool coerces a decoded JSON attribute value to bool.
+func AsBool(v any) bool { return asBool(v) }
+
 // ---- runs / spans / timeline ----
 
 // RunTimeline returns ordered events, spans and the run aggregate.
