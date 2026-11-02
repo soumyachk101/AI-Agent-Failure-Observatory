@@ -41,7 +41,7 @@ func (s *LocalObjectStore) pathFor(project, ref string) string {
 		// fallback to a shared bucket.
 		return ""
 	}
-	return path.Join(s.Root, sanitizeRef(project), sanitizeRef(ref))
+	return path.Join(s.Root, SanitizeRef(project), SanitizeRef(ref))
 }
 
 func (s *LocalObjectStore) Put(ctx context.Context, project, ref string, data []byte) error {
@@ -90,8 +90,9 @@ func (s *LocalObjectStore) Has(ctx context.Context, project, ref string) (bool, 
 	return false, err
 }
 
-// sanitizeRef forbids traversal and keeps refs addressable.
-func sanitizeRef(ref string) string {
+// SanitizeRef forbids traversal and keeps refs addressable. Exported so the
+// S3 adapter (blobs3) reuses the exact same key-sanitising rules.
+func SanitizeRef(ref string) string {
 	ref = strings.TrimSpace(ref)
 	ref = strings.ReplaceAll(ref, "..", "")
 	ref = strings.Trim(ref, "/")
