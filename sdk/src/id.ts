@@ -21,8 +21,8 @@ export function newId(): string {
     const buf = new Uint8Array(16);
     c.getRandomValues(buf);
     // RFC4122 v4 bits.
-    buf[6] = (buf[6] & 0x0f) | 0x40;
-    buf[8] = (buf[8] & 0x3f) | 0x80;
+    buf[6] = ((buf[6] ?? 0) & 0x0f) | 0x40;
+    buf[8] = ((buf[8] ?? 0) & 0x3f) | 0x80;
     const hex = Array.from(buf, (b) => b.toString(16).padStart(2, "0")).join("");
     return (
       hex.slice(0, 8) + "-" + hex.slice(8, 12) + "-" + hex.slice(12, 16) + "-" +
