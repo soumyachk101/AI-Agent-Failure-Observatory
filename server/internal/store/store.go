@@ -531,7 +531,7 @@ func (s *Store) RunTimeline(ctx context.Context, project, run string) (*Timeline
 		tl.Run = r
 	}
 	rows, err := s.db.QueryContext(ctx, `
-		SELECT id, span_id, parent_span_id, seq, type, ts,
+		SELECT id, COALESCE(span_id,''), COALESCE(parent_span_id,''), seq, type, ts,
 		       COALESCE(agent_name,''), COALESCE(agent_version,''),
 		       COALESCE(model,''), COALESCE(provider,''),
 		       COALESCE(attrs,'{}'), COALESCE(payload_ref,''), received_at
