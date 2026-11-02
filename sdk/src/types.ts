@@ -63,6 +63,9 @@ export interface EventEnvelope {
 
 /** Namespaced attribute keys (spec 7: namespaced attributes). */
 export const Attr = {
+  // agent
+  agentFrom: "agent.from",
+  agentTo: "agent.to",
   // model
   modelTokensIn: "model.tokens_in",
   modelTokensOut: "model.tokens_out",
