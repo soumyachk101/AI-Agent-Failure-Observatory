@@ -19,7 +19,7 @@ import (
 
 // App wires the control plane together.
 type App struct {
-	Store     *store.Store
+	Store     store.Engine
 	Queue     queue.Queue
 	Normalizer *pipeline.Normalizer
 	Blob      blob.ObjectStore
@@ -41,7 +41,7 @@ type KeyStore interface {
 }
 
 // New builds the app. The worker is constructed but not started.
-func New(st *store.Store, q queue.Queue, b blob.ObjectStore, log *slog.Logger) *App {
+func New(st store.Engine, q queue.Queue, b blob.ObjectStore, log *slog.Logger) *App {
 	_ = st
 	_ = q
 	_ = b
@@ -54,7 +54,7 @@ func New(st *store.Store, q queue.Queue, b blob.ObjectStore, log *slog.Logger) *
 }
 
 // ProjectPolicyView adapts store.Project to pipeline.ProjectPolicy.
-func ProjectPolicyView(ctx context.Context, st *store.Store, project string) (pipeline.ProjectPolicy, error) {
+func ProjectPolicyView(ctx context.Context, st store.Engine, project string) (pipeline.ProjectPolicy, error) {
 	p, err := st.GetProject(ctx, project)
 	if err != nil {
 		return pipeline.ProjectPolicy{}, err
