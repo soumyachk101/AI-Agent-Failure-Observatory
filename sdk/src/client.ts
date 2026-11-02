@@ -117,7 +117,7 @@ export class ObservatoryClient {
   private stopped = false;
   private consecutiveFailures = 0;
 
-  private readonly stats: ClientStats = {
+  private readonly counters: ClientStats = {
     emitted: 0,
     buffered: 0,
     dropped: 0,
@@ -125,6 +125,7 @@ export class ObservatoryClient {
     retries: 0,
     batchFailures: 0,
   };
+  private activeDrain: Promise<unknown> | null = null;
 
   constructor(opts: ClientOptions) {
     this.endpoint = opts.endpoint;
@@ -171,13 +172,13 @@ export class ObservatoryClient {
    */
   emit(envelope: EventEnvelope): void {
     if (this.disabled || this.stopped) return;
-    this.stats.emitted++;
+    this.counters.emitted++;
     this.pending.push({
       ...envelope,
       schema_version: envelope.schema_version || SCHEMA_VERSION,
       project_id: envelope.project_id || this.projectId || "",
     });
-    this.stats.buffered = this.pending.length;
+    this.counters.buffered = this.pending.length;
     this.enforceCap();
     this.scheduleFlush();
   }
@@ -222,8 +223,8 @@ export class ObservatoryClient {
     const over = this.pending.length - this.cfg.maxBufferSize;
     if (over > 0) {
       this.pending.splice(0, over);
-      this.stats.dropped += over;
-      this.stats.buffered = this.pending.length;
+      this.counters.dropped += over;
+      this.counters.buffered = this.pending.length;
       this.log?.("buffer overflow; dropped %d oldest event(s)", over);
     }
   }
@@ -245,7 +246,13 @@ export class ObservatoryClient {
   private async autoFlush(): Promise<void> {
     // Backed off because the server kept failing: stop hammering it.
     if (this.consecutiveFailures >= this.cfg.maxConsecutiveFailures) return;
-    await this.drainBatch();
+    const p = this.drainBatch();
+    this.activeDrain = p;
+    try {
+      await p;
+    } finally {
+      if (this.activeDrain === p) this.activeDrain = null;
+    }
   }
 
   /**
@@ -265,12 +272,13 @@ export class ObservatoryClient {
           break;
         case "retryable":
           this.pending.unshift(...batch);
+          this.counters.buffered = this.pending.length;
           this.consecutiveFailures++;
           this.log?.("batch deferred for redelivery (transient)");
           break;
         case "permanent":
-          this.stats.dropped += batch.length;
-          this.stats.batchFailures++;
+          this.counters.dropped += batch.length;
+          this.counters.batchFailures++;
           this.consecutiveFailures++;
           this.log?.("batch dropped (permanent failure), n=%d", batch.length);
           break;
@@ -284,14 +292,14 @@ export class ObservatoryClient {
   private async send(batch: EventEnvelope[], key: string): Promise<Status> {
     for (let attempt = 0; attempt <= this.cfg.maxRetries; attempt++) {
       if (attempt > 0) {
-        this.stats.retries++;
+        this.counters.retries++;
         await this.sleep(this.jitter(attempt));
       }
       try {
         const res = await this.post(batch, key);
         if (res.status >= 200 && res.status < 300) {
-          this.stats.sent += batch.length;
-          this.stats.buffered = this.pending.length;
+          this.counters.sent += batch.length;
+          this.counters.buffered = this.pending.length;
           return "ok";
         }
         if (res.status === 429 || res.status >= 500) continue; // transient
@@ -336,11 +344,15 @@ export class ObservatoryClient {
    */
   async flush(): Promise<void> {
     this.stopTimer();
+    // A coalesced auto-flush may still be in flight; wait for it to settle so
+    // its retry outcome (requeued batch) is visible before we decide to drain.
+    if (this.activeDrain) await this.activeDrain;
     let guard = 0;
     while (this.pending.length > 0 && guard++ < this.cfg.maxBufferSize) {
       const status = await this.drainBatch();
       if (status === "retryable" || status === "permanent") break;
     }
+    if (this.activeDrain) await this.activeDrain;
   }
 
   /** Stop auto-flush timers without draining (call flush() to drain first). */
@@ -358,7 +370,7 @@ export class ObservatoryClient {
 
   /** Counter snapshot for diagnostics and tests. */
   stats(): ClientStats {
-    return { ...this.stats, buffered: this.pending.length };
+    return { ...this.counters, buffered: this.pending.length };
   }
 }
 
