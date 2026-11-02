@@ -60,7 +60,29 @@ process.on("SIGTERM", async () => {
 | `ModelCall` / `ToolCall` | Open on `started`, close on `completed` / `failed`; usage attribution is explicit. |
 | `estimateUsage` | char/4 token estimate; **always labelled `usage.source = "estimate"`** so consumers never read it as provider data. |
 | `withRun` / `activeRun` | Propagate the current run across async boundaries without threading it through every signature. |
-| `redact` / `scrubString` / `applyHook` | Client-side redaction: sensitive keys are replaced before content leaves the process; the server redacts again as a second layer. |
+| `redact` / `scrubString` / `applyHook` | Client-side redaction: sensitive keys are replaced before content leaves the process; the server redacts again as a second layer. `scrub()` / `applyHook` are the manual escape hatches for values you capture yourself. |
+
+### Redaction hook — automatic on the capture path
+
+`redactionHook` runs **automatically over every attribute of every emitted
+event**, in the instrumentation capture path, before the envelope enters the
+client buffer. Return `undefined` to drop a field; any other return value
+replaces the attribute. This is the safer default for an SDK whose whole
+point is redaction: secrets never enter the batch. A hook that throws is
+logged via the client's `log` sink and the original value is kept — a bad
+hook can never crash the instrumented agent.
+
+```ts
+const client = new ObservatoryClient({
+  endpoint, apiKey,
+  redactionHook: (key, value) =>
+    key === "tenant_hint" ? undefined : value, // drop or transform
+});
+```
+
+`client.scrub(value)` and the protected `applyHook(key, value)` remain as
+manual redaction for values you capture by hand; they use the same built-in
+redaction / hook machinery.
 
 ### Instrumentation model
 
