@@ -322,7 +322,7 @@ export class Run {
 
   /** Budget events (spec 8.3); the detector treats exhausted as an error. */
   budget(level: "warning" | "exhausted"): Run {
-    this.emitEvent(level === "warning" ? "budget.warning" : "budget.exhausted");
+    this.emitEvent(level === "warning" ? "budget.warning" : "budget.exhausted", {});
     return this;
   }
 
@@ -342,7 +342,7 @@ export class Run {
 
   /** Terminal run.cancelled. */
   cancel(): Run {
-    this.emitEvent("run.cancelled");
+    this.emitEvent("run.cancelled", {});
     return this;
   }
 
@@ -463,20 +463,20 @@ export class Observatory {
  * fn. Use it to propagate the current run across an async boundary without
  * threading it through every call signature.
  */
-let activeRun: Run | null = null;
+let currentRun: Run | null = null;
 
 export function withRun<T>(run: Run, fn: () => T): T {
-  const prev = activeRun;
-  activeRun = run;
+  const prev = currentRun;
+  currentRun = run;
   try {
     return fn();
   } finally {
-    activeRun = prev;
+    currentRun = prev;
   }
 }
 
 export function activeRun(): Run | null {
-  return activeRun;
+  return currentRun;
 }
 
 /**
