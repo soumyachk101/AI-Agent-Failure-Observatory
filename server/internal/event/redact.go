@@ -71,7 +71,7 @@ func redactValue(key string, v any, extra map[string]bool) any {
 		if sensitive {
 			return "[REDACTED]"
 		}
-		return redact(val, nil)
+		return Redact(val, nil)
 	case []any:
 		if sensitive {
 			return "[REDACTED]"
