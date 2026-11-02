@@ -81,12 +81,12 @@ describe("buffering: non-blocking, batched delivery", () => {
     for (let i = 0; i < 50; i++) client.emit(env(i));
     await tick();
     expect(fake).toHaveBeenCalledTimes(1);
-    const call = fake.mock.calls[0] as unknown as { 0: string; 1: RequestInit };
-    expect(call.0).toBe("http://observatory:8080/v1/ingest/events");
-    const parsed = JSON.parse(call.1.body as string);
+    const call = fake.mock.calls[0] as [string, RequestInit];
+    expect(call[0]).toBe("http://observatory:8080/v1/ingest/events");
+    const parsed = JSON.parse(call[1].body as string);
     expect(parsed.events).toHaveLength(50);
     expect(parsed.idempotency_key).toMatch(/^batch-/);
-    const headers = call.1.headers as Record<string, string>;
+    const headers = call[1].headers as Record<string, string>;
     expect(headers.Authorization).toBe("Bearer k");
     expect(headers["X-Obs-Key"]).toBe("k");
     expect(client.stats().sent).toBe(50);
