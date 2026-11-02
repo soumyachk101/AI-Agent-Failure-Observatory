@@ -9,8 +9,8 @@ import {
   useAsync,
 } from "../hooks";
 import type { RunJump } from "../App";
-import { TimelineCanvas } from "../timeline/TimelineCanvas";
-import { RunInspector } from "../timeline/RunInspector";
+import { TimelineCanvas } from "./timeline/TimelineCanvas";
+import { RunInspector } from "./timeline/RunInspector";
 
 const STATUS_OPTIONS = [
   { value: "", label: "all statuses" },
