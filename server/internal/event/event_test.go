@@ -136,7 +136,8 @@ func TestValidate(t *testing.T) {
 		return Envelope{SchemaVersion: SchemaVersion, EventID: "e", RunID: "r",
 			EventType: ToolCompleted, Sequence: 1, Timestamp: ts()}
 	}
-	if err := base().Validate(); err != nil {
+	env := base()
+	if err := env.Validate(); err != nil {
 		t.Fatalf("valid envelope rejected: %v", err)
 	}
 	bad := base(); bad.EventID = ""
