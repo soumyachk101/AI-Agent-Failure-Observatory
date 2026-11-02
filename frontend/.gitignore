@@ -1,0 +1,8 @@
+node_modules
+dist
+dist-ssr
+*.local
+*.tsbuildinfo
+
+# local env with real keys
+.env
