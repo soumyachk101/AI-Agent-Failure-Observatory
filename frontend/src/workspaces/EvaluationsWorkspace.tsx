@@ -649,7 +649,7 @@ function ReplayTab({ onOpenRun }: { onOpenRun: (runId: string) => void }) {
     <div style={{ display: "flex", flexDirection: "column", gap: 14, maxWidth: 760 }}>
       {runs[0].status === "error" && (
         <ErrorState
-          message="Could not list runs for replay origin selection: " + runs[0].error
+          message={"Could not list runs for replay origin selection: " + runs[0].error}
           onRetry={() => runs[1]()}
         />
       )}
@@ -761,7 +761,7 @@ function ReplayTab({ onOpenRun }: { onOpenRun: (runId: string) => void }) {
         </div>
       )}
 
-      {lastJob?.provenance && (
+      {lastJob?.provenance != null && (
         <details className="raw" style={{ maxWidth: 720 }}>
           <summary>replay provenance</summary>
           <pre className="raw-json">{JSON.stringify(lastJob.provenance, null, 2)}</pre>
