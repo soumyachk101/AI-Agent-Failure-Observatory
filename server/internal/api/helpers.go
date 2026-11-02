@@ -155,7 +155,7 @@ func findingAsMap(f store.FindingRow) map[string]any {
 }
 
 func sigAsMap(s store.Signature) map[string]any {
-	return sigAsMapOpt(&s)
+	return sigAsMapOpt(&s).(map[string]any)
 }
 
 func sigAsMapOpt(s *store.Signature) any {
