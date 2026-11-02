@@ -62,22 +62,28 @@ project with the key `demo-key`, a sample dataset, and a synthetic
   "this is sample data" surfacing rule in the frontend + any analytics
   export.
 
-## 4. Default binary is dev-path only (production backends not wired in)
+## 4. Production backends are wired; dev mode is still the default
 
-`cmd/observatory` unconditionally uses embedded SQLite, the file queue, and
-the local blob dir. The Postgres/ClickHouse/NATS/S3 targets exist as
-`infrastructure/` DDL + build-tagged reference code (`internal/queue/nats.go`
-is `//go:build nats`) and a `store.Engine` interface, but the running binary
-does not switch to them from env yet. The `PRODUCTION_OBS_*` compose vars are
-documented placeholders. See `deploy/NOTES-AND-GAPS.md` (G2, G5) and
-`docs/ARCHITECTURE.md` (env selection).
+`cmd/observatory` now selects each production target independently from the
+reserved env vars — see `docs/PRODUCTION-BACKENDS.md` and `docker-compose.yml`
+(prod profile):
 
-## 5. `server/go.sum` is absent from the tree
+- `OBS_DATABASE_URL` → `storepg` Postgres metadata store (else embedded SQLite)
+- `OBS_NATS_URL` → `queuenats` JetStream durable queue (else the file queue)
+- `OBS_S3_ENDPOINT` → `blobs3` S3/MinIO object store (else the local blob dir)
+- `OBS_CLICKHOUSE_DSN` → `analyticsch` ClickHouse analytics mirror (else no
+  analytics sink)
 
-`server/go.mod` requires `modernc.org/sqlite` but there is no `go.sum`.
-`go mod tidy` (which belongs to the head owning `server/go.mod`/`go.sum`)
-must be run before the `server/Dockerfile` (`go mod download`) smoke test
-works on a clean checkout.
+Unset targets keep their dev fallbacks, so a plain startup with no env vars
+still behaves as the dev mode always did. (Earlier the binary was
+dev-path-only and these were placeholders; that is no longer the case.)
+
+## 5. `server/go.sum` is now present (was: absent)
+
+`server/go.sum` is maintained in-tree and covers every `go.mod` requirement
+(including `modernc.org/sqlite`), so `go mod download` / `go build ./...`
+work on a clean checkout without a manual tidy. (Earlier `go.sum` was
+absent and a `go mod tidy` had to be run first; that is no longer the case.)
 
 ## 6. Detectors are single-run, not cross-run, in the default path
 
