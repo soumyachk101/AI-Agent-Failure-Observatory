@@ -20,7 +20,7 @@ import (
 // in the UI), so the worker is a safety net for any batch that went to the
 // queue only. Both paths are idempotent, so double-processing is safe.
 type Worker struct {
-	Store *store.Store
+	Store store.Engine
 	Queue queue.Queue
 	Log   *slog.Logger
 
@@ -30,7 +30,7 @@ type Worker struct {
 }
 
 // NewWorker constructs a worker with default pull size.
-func NewWorker(st *store.Store, q queue.Queue, log *slog.Logger) *Worker {
+func NewWorker(st store.Engine, q queue.Queue, log *slog.Logger) *Worker {
 	if log == nil {
 		log = slog.Default()
 	}
