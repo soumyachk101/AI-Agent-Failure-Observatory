@@ -11,7 +11,8 @@ export function projectMomentum(currentPx: number, velPxPerSec: number, decaySec
 /** From a projected px position, the snap index to land on. */
 export function momentumLandingIndex(projectedPx: number, itemPx: number): number {
   if (itemPx <= 0) return 0;
-  return Math.round(-projectedPx / itemPx);
+  const i = Math.round(-projectedPx / itemPx);
+  return i === 0 ? 0 : i; // normalize -0 to 0 (Object.is / toBe in tests)
 }
 
 /** Clamp an index into [min, max]. */
