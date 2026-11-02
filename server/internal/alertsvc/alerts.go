@@ -21,8 +21,11 @@ import (
 // AlertService evaluates rules against recent findings/signatures and
 // delivers triggered alerts to webhooks.
 type AlertService struct {
-	Store  *store.Store
-	HTTP   *http.Client
+	Store  store.Engine
+	// Metrics supplies the built-in detector metrics. Filled from Store when
+	// it implements store.AlertMetrics; tests may override.
+	Metrics store.AlertMetrics
+	HTTP    *http.Client
 	// SigningSecret is used to HMAC-sign webhook deliveries so receivers
 	// can verify authenticity and replay protection uses a monotonically
 	// increasing nonce (spec: signed webhook delivery + replay protection).
@@ -32,11 +35,15 @@ type AlertService struct {
 }
 
 // New builds the alert service.
-func New(s *store.Store) *AlertService {
-	return &AlertService{
+func New(s store.Engine) *AlertService {
+	a := &AlertService{
 		Store: s, HTTP: &http.Client{Timeout: 5 * time.Second},
 		Now: time.Now,
 	}
+	if m, ok := s.(store.AlertMetrics); ok {
+		a.Metrics = m
+	}
+	return a
 }
 
 // WebhookPayload is the signed delivery body.
@@ -50,7 +57,6 @@ type WebhookPayload struct {
 	Threshold     int           `json:"threshold"`
 	WindowMin     int           `json:"window_min"`
 	WindowStart   time.Time     `json:"window_start"`
-	Signature     string        `json:"signature,omitempty"`
 	Nonce         int64         `json:"nonce"`
 	Signature     string        `json:"signature"`
 	OccurredAt    time.Time     `json:"occurred_at"`
@@ -123,7 +129,7 @@ func (a *AlertService) metricFor(ctx context.Context, project string, r store.Al
 	}
 }
 
-func sigForFindings(ctx context.Context, s *store.Store, project, kind string) string {
+func sigForFindings(ctx context.Context, s store.Engine, project, kind string) string {
 	sigs, _ := s.ListSignatures(ctx, project)
 	for _, sg := range sigs {
 		if sg.Kind == kind {
@@ -134,25 +140,18 @@ func sigForFindings(ctx context.Context, s *store.Store, project, kind string) s
 }
 
 func (a *AlertService) countFindingKind(ctx context.Context, project, kind string, since time.Time) int64 {
-	var n int64
-	err := a.Store.DB().QueryRowContext(ctx, `
-		SELECT COALESCE(COUNT(*),0) FROM findings
-		WHERE project_id = ? AND kind = ? AND created_at >= ?`,
-		project, kind, since.UTC().Format(time.RFC3339)).Scan(&n)
-	if err != nil {
+	if a.Metrics == nil {
 		return 0
 	}
-	return n
+	return a.Metrics.AlertFindingKind(ctx, project, kind, since)
 }
 
 func (a *AlertService) failureRate(ctx context.Context, project string, since time.Time) int64 {
-	var total, failed int64
-	err := a.Store.DB().QueryRowContext(ctx, `
-		SELECT COALESCE(SUM(CASE WHEN status='open' THEN 1 ELSE 0 END),0),
-		       COALESCE(SUM(CASE WHEN status='failed' THEN 1 ELSE 0 END),0)
-		FROM runs WHERE project_id = ? AND started_at >= ?`,
-		project, since.UTC().Format(time.RFC3339)).Scan(&total, &failed)
-	if err != nil || total == 0 {
+	if a.Metrics == nil {
+		return 0
+	}
+	total, failed := a.Metrics.AlertRunStatusCounts(ctx, project, since)
+	if total == 0 {
 		return 0
 	}
 	return int64(float64(failed) / float64(total) * 100)
@@ -161,17 +160,10 @@ func (a *AlertService) failureRate(ctx context.Context, project string, since ti
 func (a *AlertService) countLatencyRegressions(ctx context.Context, project string, since time.Time) int64 {
 	// A latency regression = a run whose duration is more than 2x the
 	// average over the same window. Computed in one pass.
-	var n int64
-	err := a.Store.DB().QueryRowContext(ctx, `
-		SELECT COALESCE(SUM(CASE WHEN duration_ms > 2 * avg_ms THEN 1 ELSE 0 END),0)
-		FROM (
-			SELECT duration_ms, AVG(duration_ms) OVER () AS avg_ms
-			FROM runs WHERE project_id = ? AND started_at >= ? AND duration_ms > 0
-		)`, project, since.UTC().Format(time.RFC3339)).Scan(&n)
-	if err != nil {
+	if a.Metrics == nil {
 		return 0
 	}
-	return n
+	return a.Metrics.AlertLatencyRegressions(ctx, project, since)
 }
 
 // deliver signs and POSTs the webhook. Nonce is a monotonic value derived
