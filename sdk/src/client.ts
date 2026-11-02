@@ -188,6 +188,28 @@ export class ObservatoryClient {
   }
 
   /**
+   * Run the user redaction hook for one attribute. Returns the value to
+   * capture, or undefined to drop the field entirely.
+   *
+   * This hook now runs automatically over every attribute of every emitted
+   * event in the instrumentation capture path (Run.emitEvent), so a value
+   * the hook drops or transforms never reaches the client buffer. This is
+   * the escape hatch for manual capture: values you redact yourself with
+   * scrub()/applyHook still go through the same hook. A hook that throws
+   * is logged via the client's log sink and the original value is kept —
+   * telemetry must never crash the instrumented agent.
+   */
+  redactAttr(key: string, value: unknown): unknown {
+    try {
+      const { value: v, dropped } = applyHook(key, value, this.hook);
+      return dropped ? undefined : v;
+    } catch (err) {
+      this.log?.("redaction hook error; attribute kept as-is", err);
+      return value;
+    }
+  }
+
+  /**
    * Run the optional user redaction hook for one attribute. Returns the value
    * to capture, or undefined to drop the field entirely.
    */
