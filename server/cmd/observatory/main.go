@@ -53,7 +53,7 @@ func main() {
 		addr       = flag.String("addr", envOr("OBS_ADDR", ":8080"), "listen address")
 		dataDir    = flag.String("data-dir", envOr("OBS_DATA_DIR", "./data"), "embedded data directory")
 		logLevel   = flag.String("log-level", envOr("OBS_LOG_LEVEL", "info"), "log level")
-		seedDemo   = flag.Bool("seed-demo", envOr("OBS_SEED_DEMO", "true") == "true", "seed a demo project + sample run")
+		seedDemoOn = flag.Bool("seed-demo", envOr("OBS_SEED_DEMO", "true") == "true", "seed a demo project + sample run")
 		webhookSec = flag.String("webhook-secret", envOr("OBS_WEBHOOK_SECRET", ""), "HMAC secret for signed webhooks (empty in dev)")
 		workerOff  = flag.Bool("no-worker", false, "disable the background queue worker")
 	)
@@ -144,7 +144,6 @@ func main() {
 
 	// Analytics sink: ClickHouse when OBS_CLICKHOUSE_DSN is set. It mirrors
 	// events/spans alongside the primary store (a composite wraps st).
-	var chSink *analyticsch.ClickHouse
 	if cfg.HasClickHouse() {
 		chSink, err := analyticsch.New(ctx, cfg.ClickHouseDSN, logger, cfg.CHBufferMaxRows)
 		if err != nil {
@@ -161,7 +160,7 @@ func main() {
 	app := api.New(st, q, bs, logger)
 	app.SigningSecret = *webhookSec
 
-	if *seedDemo {
+	if *seedDemoOn {
 		if err := seedDemo(ctx, st, logger); err != nil {
 			logger.Warn("seed demo", "error", err)
 		}
