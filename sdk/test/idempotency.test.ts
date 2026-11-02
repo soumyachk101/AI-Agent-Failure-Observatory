@@ -28,7 +28,7 @@ describe("eventKey (per-event idempotency)", () => {
   });
 
   it("treats a missing span as empty (server omits it from the join)", () => {
-    const e = env({ event_id: "e-2", sequence: 1, span_id: undefined });
+    const e = env({ event_id: "e-2", sequence: 1, span_id: undefined, event_type: "run.started" });
     expect(eventKey(e)).toBe("acme|run-1||run.started|1|e-2");
   });
 
