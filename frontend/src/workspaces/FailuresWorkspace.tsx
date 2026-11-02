@@ -140,7 +140,7 @@ function SignaturePanel({
   );
 
   const index = useMemo(
-    () => buildEvidenceIndex(tl.status === "ready" ? tl.data : null),
+    () => buildEvidenceIndex(tl[0].status === "ready" ? tl[0].data : null),
     [tl],
   );
 
@@ -194,7 +194,7 @@ function SignaturePanel({
               <FindingRow
                 key={f.id}
                 finding={f}
-                timeline={tl.status === "ready" ? tl.data : null}
+                timeline={tl[0].status === "ready" ? tl[0].data : null}
                 index={index}
                 onOpenRun={onOpenRun}
               />
