@@ -283,8 +283,8 @@ func (r *Router) listRuns(w http.ResponseWriter, req *http.Request) {
 	environment := q.Get("environment")
 	limit := 50
 	if l := q.Get("limit"); l != "" {
-		if _, err := fmtAtoi(l); err == nil {
-			limit = int(fmtAtoi(l))
+		if v, err := fmtAtoi(l); err == nil {
+			limit = int(v)
 		}
 	}
 	offset := 0
