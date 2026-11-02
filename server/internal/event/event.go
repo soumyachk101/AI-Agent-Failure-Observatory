@@ -194,6 +194,9 @@ func HashOf(v any) string {
 func ToolCallKey(attrs map[string]any) string {
 	tool := AttrString(attrs, AttrToolName)
 	args := attrs[AttrToolArgs]
+	if AttrString(attrs, AttrToolArgsHash) != "" {
+		args = AttrString(attrs, AttrToolArgsHash)
+	}
 	schema := AttrString(attrs, AttrSchemaVersion)
 	return fmt.Sprintf("%s|%s|%s", tool, HashOf(args), schema)
 }
