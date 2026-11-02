@@ -1,0 +1,8 @@
+bin/
+*.db
+data/
+queue/
+blobs/
+.git/
+Dockerfile
+.dockerignore
